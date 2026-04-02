@@ -1,4 +1,4 @@
-# A股股票分析 Agent 技术文档（MVP 重构版）
+# A股股票分析 Agent 技术文档
 
 ---
 
@@ -9,7 +9,7 @@
 - **项目名称**：A股股票分析 Agent
 - **文档版本**：V1.0
 - **文档状态**：MVP 技术文档
-- **编写日期**：2026-03-29
+- **编写日期**：2026-04-02
 
 本文档用于定义 A 股股票分析 Agent 在 MVP 阶段的技术方案，重点说明以下内容：
 
@@ -22,6 +22,7 @@
 本文档不是完整投研平台设计，也不是最终的工程实现细节清单，而是 MVP 阶段的统一技术基线。
 
 ### 1.2 适用范围
+
 本文档适用于以下团队协作场景：
 
 - 产品与研发对齐 MVP 范围；
@@ -30,6 +31,7 @@
 - 后续版本在此基础上演进，而不是重新推翻架构。
 
 ### 1.3 MVP 核心目标
+
 本项目 MVP 的目标不是构建完整投研平台，而是先验证以下闭环是否成立：
 
 > 用户提问 → 识别股票主体与时间约束 → 检索官方披露与监管材料 → 组织主证据与必要背景 → 生成带引用的问答结果
@@ -65,6 +67,7 @@ A 股研究并不是缺少信息，而是存在以下实际问题：
 ## 3. MVP 范围与非范围
 
 ### 3.1 MVP 必做范围
+
 MVP 阶段必须支持以下能力：
 
 1. **自然语言问答入口**
@@ -98,6 +101,7 @@ MVP 阶段必须支持以下能力：
    - 附带来源引用。
 
 ### 3.2 MVP 明确不做
+
 以下能力不纳入本阶段实现：
 
 - 全市场扫描与主题跟踪；
@@ -109,6 +113,7 @@ MVP 阶段必须支持以下能力：
 - 大规模多市场、多资产类别统一检索。
 
 ### 3.3 本阶段设计原则
+
 为避免 MVP 过早复杂化，本阶段遵循以下原则：
 
 1. **先做单股，再谈跨股**；
@@ -121,6 +126,7 @@ MVP 阶段必须支持以下能力：
 ## 4. 系统总体架构
 
 ### 4.1 系统主链路
+
 系统主链路如下：
 
 > 数据接入 → 数据标准化 → 主体识别 → 事件抽取 → 任务理解 → 检索与上下文构建 → 回答生成 → 引用输出
@@ -411,9 +417,11 @@ MVP 阶段必须支持以下能力：
 - 保留原文映射关系  
 
 ### 4..5 检索与上下文构建模块
+
 负责围绕当前问题，基于主体、时间、来源和事件类型进行检索，并将结果组织为分层上下文包。
 
 ### 4..6 回答生成模块
+
 负责基于上下文包生成最终问答结果，区分事实与判断，并附带引用来源。
 
 ### 4.3 模块间边界
@@ -433,15 +441,13 @@ MVP 阶段必须支持以下能力：
 ### 5.1 设计原则
 
 1. **关系数据库为权威主存储**
-    主表中的对象和关系是系统的真实业务数据。
+   主表中的对象和关系是系统的真实业务数据。
 2. **OpenSearch / Vector DB 仅为检索索引副本**
-    只为提升全文检索、过滤和向量召回效率，不作为唯一主存。
+   只为提升全文检索、过滤和向量召回效率，不作为唯一主存。
 3. **文档层只负责“来源与文档本体”**
-    不承担复杂主体关系和复杂版本链。
+   不承担复杂主体关系和复杂版本链。
 4. **文档块层只做“中间粒度收口”**
-    不做完整章节树；每篇文档至少有一个 block。
-5. **片段层只做“证据片段”**
-    不再单独维护 `text_preview`；若需要预览文本，在搜索索引中生成。
+   不做完整章节树；每篇文档至少有一个 block。
 
 ------
 
@@ -521,7 +527,7 @@ MVP 阶段必须支持以下能力：
 **说明**
 
 - 每篇文档至少有一个 block。
-   短文档可以只生成一个默认 `body` block。
+  短文档可以只生成一个默认 `body` block。
 - 该层是 **Document 与 Fragment 之间的中间粒度对象**，用于先收口再做片段检索。
 - 当前阶段**不做完整章节树**，因此不保留 `parent_block_id`、`level`、`heading_path` 等字段。
 
@@ -538,9 +544,9 @@ MVP 阶段必须支持以下能力：
 | `block_id`      | BIGINT      | 是   | 所属文档块                                                   |
 | `fragment_type` | VARCHAR(32) | 否   | 片段结构类型，建议仅保留 `text / qa_question / qa_answer`；大多数场景默认 `text` |
 | `sequence_no`   | INT         | 是   | 片段在 block 中的顺序号                                      |
-| `text`          | TEXT        | 是   | 片段完整文本                                                 |
 | `char_start`    | INT         | 否   | 片段在文档全文中的起始位置；若不做精确高亮可为空             |
 | `char_end`      | INT         | 否   | 片段在文档全文中的结束位置；若不做精确高亮可为空             |
+| `text_count`    | INT         | 否   | 片段文本估算 token 数，用于切片控制和上下文预算              |
 | `created_at`    | TIMESTAMP   | 是   | 创建时间                                                     |
 | `updated_at`    | TIMESTAMP   | 是   | 更新时间                                                     |
 
@@ -708,31 +714,32 @@ event_entity_relation
 
 ------
 
-#### 5.2.9 检索索引副本（非权威存储）
+#### 5.2.9 向量数据结构
 
-这一层不是关系库主表，而是同步到 **OpenSearch / Vector DB** 的索引记录，用来支持：
+这一层不是关系库主表，而是Vector DB的索引记录，用来支持：
 
 - 全文检索
 - 主体/时间/来源/事件类型过滤
 - 向量召回
 - 结果预览
 
-`search_index_record`（抽象结构）
+`vector_index_record`（抽象结构）
 
-| 字段                | 类型          | 必填 | 说明                                       |
-| ------------------- | ------------- | ---- | ------------------------------------------ |
-| `record_id`         | VARCHAR(128)  | 是   | 索引记录 ID                                |
-| `record_type`       | VARCHAR(32)   | 是   | 对象类型，如 `document / fragment / event` |
-| `source_object_id`  | BIGINT        | 是   | 对应权威表中的主键                         |
-| `primary_entity_id` | BIGINT        | 否   | 主主体 ID，用于快速过滤                    |
-| `entity_ids`        | JSONB         | 否   | 关联主体 ID 列表，供检索过滤使用           |
-| `event_ids`         | JSONB         | 否   | 关联事件 ID 列表，供检索过滤使用           |
-| `text`              | TEXT          | 否   | 搜索或向量检索用文本                       |
-| `embedding`         | VECTOR / BLOB | 否   | 向量字段，仅在向量库中使用                 |
-| `publish_time`      | TIMESTAMP     | 否   | 发布时间过滤字段                           |
-| `doc_type`          | VARCHAR(64)   | 否   | 文档类型过滤字段                           |
-| `source_type`       | VARCHAR(64)   | 否   | 来源类型过滤字段                           |
-| `updated_at`        | TIMESTAMP     | 是   | 索引更新时间                               |
+| 字段                 | 类型          | 必填 | 说明                                       |
+| -------------------- | ------------- | ---- | ------------------------------------------ |
+| `record_id`          | VARCHAR(128)  | 是   | 索引记录 ID                                |
+| `record_type`        | VARCHAR(32)   | 是   | 对象类型，如 `document / fragment / event` |
+| `source_fragment_id` | BIGINT        | 是   | 对应权威表中的主键                         |
+| `primary_entity_id`  | BIGINT        | 否   | 主主体 ID，用于快速过滤                    |
+| `entity_ids`         | JSONB         | 否   | 关联主体 ID 列表，供检索过滤使用           |
+| `event_ids`          | JSONB         | 否   | 关联事件 ID 列表，供检索过滤使用           |
+| `storage_mode`       | int           | 是   | 文本服务方式，建议取值 inline / object_ref |
+| `text`               | TEXT          | 否   | 搜索或向量检索用文本                       |
+| `textext_store_key`  | TEXT          | 否   | 保存对象存储路径，命中后直接读取真实文本   |
+| `embedding`          | VECTOR / BLOB | 否   | 向量字段，仅在向量库中使用                 |
+| `publish_time`       | TIMESTAMP     | 否   | 发布时间过滤字段                           |
+| `doc_type`           | VARCHAR(64)   | 否   | 文档类型过滤字段                           |
+| `source_type`        | VARCHAR(64)   | 否   | 来源类型过滤字段                           |
 
 **说明**
 
@@ -780,6 +787,7 @@ document / fragment / event
 ## 6. 检索与上下文构建模块设计
 
 ### 6.1 模块目标
+
 检索与上下文构建模块的目标不是简单返回若干相似文本，而是围绕当前问题构建**可供回答生成使用的任务上下文**。
 
 MVP 阶段本模块需要做到：
@@ -806,6 +814,7 @@ MVP 阶段本模块需要做到：
 - 深度研究级上下文编排。
 
 ### 6.2 统一检索链路
+
 MVP 阶段统一检索链路建议定义为：
 
 > 用户问题 → 任务理解 → 结构化任务框架 → 基础过滤 → 主召回 → 原文回查 → 背景补充 → 上下文包输出
@@ -830,7 +839,7 @@ MVP 阶段统一检索链路建议定义为：
 4. **MVP 只做统一任务框架，不做完整动态规划**
    - 本阶段不展开证据槽位、覆盖度评估、重规划逻辑。
 
-```
+``` text
 用户问题
    │
    ▼
@@ -838,21 +847,22 @@ MVP 阶段统一检索链路建议定义为：
    │
    ▼
 Task Frame
-(主体、时间、query_mode、domain_facet、analysis_intent、source_policy)
+(主体、时间、query_mode、domain_facet)
    │
    ▼
-检索计划生成模块
-(Retrieval Plan Generator)
+首轮检索计划生成
+(Initial Retrieval Plan Generator)
    │
    ├─ 读取策略配置(query_mode × domain_facet)
-   ├─ 生成证据槽位模板(slot template)
-   └─ 生成首轮检索分支(branch plan)
+   ├─ 选择首轮主召回路径
+   ├─ 设定首轮过滤条件
+   └─ 设定首轮预算与补检上限
    │
    ▼
 约束编译与候选范围收口
 (Constraint Compiler + Scope Builder)
    │
-   ├─ 主体范围扩展(entity / entity_relation)
+   ├─ 主主体过滤(primary_entity_ids)
    ├─ 时间过滤
    ├─ 来源过滤
    ├─ 文档类型过滤
@@ -860,39 +870,44 @@ Task Frame
    │
    ▼
 首轮多路召回
+(Primary Path + Auxiliary Paths)
    │
-   ├─ 事件层召回(event + event_entity_relation + event index)
-   ├─ 文档层召回(document + document index)
-   └─ 片段层召回(fragment + document_block + fragment index/vector)
+   ├─ 主召回路径
+   ├─ 辅助召回路径
+   └─ 原文回查 / 定位
    │
    ▼
 证据标准化与融合重排
 (Evidence Normalizer + Ranker)
    │
    ▼
-证据槽位填充
-(Slot Filler)
+初始上下文包构建
+(Initial Context Builder)
+   │
+   ├─ 主证据候选
+   ├─ 基础背景候选
+   └─ 当前回答缺口
    │
    ▼
-覆盖度评估
-(Coverage Checker)
+缺口识别与停机判断
+(Context Gap Analyzer)
    │
-   ├─ 覆盖通过 ───────────────┐
-   │                          │
-   └─ 存在缺口                │
-        │                     │
-        ▼                     │
-   定向补检计划生成           │
-   (Gap Analyzer)             │
-        │                     │
-        ▼                     │
-   定向补检执行               │
-   (Patch Retrieval)          │
-        │                     │
-        └────回到槽位填充与覆盖度评估────┘
+   ├─ 已满足最小回答闭环 
+   │                          
+   └─ 存在关键缺口               
+        │                      
+        ▼                      
+   有限定向补检计划生成            
+   (Patch Plan Generator)      
+        │                     
+        ▼                      
+   定向补检执行                
+   (Patch Retrieval)           
+        │                      
+        └────回到缺口识别与上下文更新
    │
    ▼
-上下文包组装
+最终上下文包组装
 (Context Assembler)
    │
    ├─ 主证据
@@ -904,11 +919,10 @@ Task Frame
 回答生成模块
 ```
 
-
-
 ### 6.3 结构化任务框架（Task Frame）
 
 #### 6.3.1 设计目标
+
 结构化任务框架用于把自然语言问题转换为检索模块可执行的标准输入。
 
 其目标包括：
@@ -918,28 +932,100 @@ Task Frame
 - 避免检索完全依赖 prompt 临时判断；
 - 为后续版本扩展为自适应检索预留接口。
 
+#### 6.3.2 生成流程总览
+
+MVP 阶段，Task Frame 采用“两阶段生成”方案：
+
+用户问题
+→ 第一阶段：LLM 初解析
+→ 第二阶段：程序标准化与验证
+→ 输出最终 Task Frame
+
+**第一阶段：LLM 初解析**
+
+LLM 负责从用户原始问题中提取以下信息：
+
+* 用户问题中涉及的股票 / 公司名称；
+* 时间表达及时间模式；
+* 问题模式（query mode）；
+* 业务领域（domain facet）。
+
+此阶段输出的是解析草稿，而不是最终可执行 Task Frame。
+
+**第二阶段：程序标准化与验证**
+
+程序侧负责将 LLM 输出转换为最终标准化 Task Frame，主要工作包括：
+
+* 对股票主体名称进行数据库映射；
+* 补全 entity_id / stock_code / exchange 等结构化字段；
+* 剔除非法枚举值或无法使用的脏数据；
+* 将时间表达标准化为统一时间约束结构；
+* 对 query_mode 和 domain_facet 做合法性校验；
+* 输出最终可供检索模块使用的 Task Frame。
+
+因此，Task Frame 的创建不是一次性由 LLM 完成，而是：
+
+LLM 给出语义解析草稿，程序完成标准化、补全和最终确认。
+
 #### 6.3.2 字段设计
+
 MVP 阶段建议结构化任务框架至少包含以下字段：
 
-| 字段名 | 类型 | 是否必填 | 说明 |
-| --- | --- | --- | --- |
-| `user_query` | string | 是 | 用户原始问题 |
-| `subject` | object | 是 | 当前问题的目标股票 / 公司主体 |
-| `time_constraint` | object | 否 | 当前问题的时间范围；未显式给出时可使用默认时间窗 |
-| `query_mode` | enum | 是 | 问题模式，表示当前问题想得到什么类型结果 |
-| `domain_facet` | enum | 是 | 业务领域，表示当前问题主要落在哪类事项 |
-| `conversation_state` | object | 否 | 多轮对话继承信息 |
+| 字段名               | 类型   | 是否必填 | 说明                                                         |
+| -------------------- | ------ | -------- | ------------------------------------------------------------ |
+| `user_query`         | string | 是       | 用户原始问题                                                 |
+| `subjects`           | object | 是       | 当前问题的目标股票 / 公司主体                                |
+| `time_constraint`    | object | 否       | 当前问题的时间范围；未显式给出时可使用默认时间窗             |
+| `keyword_terms`      | object | 否       | 为片段级关键词检索提供的关键词结果                           |
+| `query_mode`         | enum   | 是       | 问题模式，表示当前问题想得到什么类型结果                     |
+| `domain_facet`       | enum   | 是       | 业务领域，表示当前问题主要落在哪类事项                       |
+| `document_scope`     | object | 否       | 当前问题是否需要将整篇文档作为首轮分析对象，以及采用何种文档使用方式 |
+| `conversation_state` | object | 否       | 多轮对话继承信息                                             |
 
 #### 6.3.3 关键字段说明
 
-##### 1. `subject`
-建议至少包含：
+##### 1. `subjects`
+
+字段说明：
+
+- `resolved`：已成功映射到系统内部实体库的股票主体列表;
+- `unresolved`：LLM 识别到但程序未能可靠映射的主体列表;
+- `primary_entity_ids`：程序确认后的主检索目标主体集合。
+
+建议股票实体至少包含：
 
 - `entity_id`：股票 / 公司主体的内部唯一标识
 - `entity_name`：股票 / 公司主体名称
 - `stock_code`：股票代码
-- `is_primary`：是否为当前问题的主标的
+- `role`：是否为当前问题的主标的  
+  - `primary`：主体
+  - `secondary`：次主体
+  - `parallel_primay`：并列主主体
+  - `uncertain`：主次关系不确定
 - `confidence`：主体识别结果的置信度，用于衡量当前主体解析是否可靠
+
+结构示意:
+
+```
+{
+  "subjects": {
+    "resolved": [
+      {
+        "entity_id": 1001,
+        "entity_name": "宁德时代新能源科技股份有限公司",
+        "stock_code": "300750",
+        "exchange": "SZSE",
+        "mention_text": "宁德时代",
+        "role": "primary",
+        "resolution_confidence": 0.98,
+        "match_type": "alias_exact"
+      }
+    ],
+    "unresolved": [],
+    "primary_entity_ids": [1001]
+  }
+}
+```
 
 作用：
 
@@ -948,13 +1034,20 @@ MVP 阶段建议结构化任务框架至少包含以下字段：
 - 支持多轮问答时复用主标的。
 
 ##### 2. `time_constraint`
+
 建议至少包含：
 
 - `raw_text`：用户原始时间表达，如“最近三个月”“上次财报后”。
 - `start_date`：标准化后的时间范围起始日期。
 - `end_date`：标准化后的时间范围结束日期。
 - `mode`：时间约束模式，如固定区间、相对时间或继承上文。
+  - `relative_range`：相对时间区间，如“最近三个月”“近半年”；
+  - `absolute_range`：固定时间区间，如“2025 年上半年”；
+  - `point_in_time`：时间点表达，如“最新”“当前”；
+  - `relative_anchor`：相对锚点表达，如“上次财报后”；
+  - `none`：未提时间，由系统补默认时间窗。
 - `is_default`：是否为系统补齐的默认时间范围，而非用户显式指定。
+- `is_explicit`：是否为用户显式给出的时间约束
 
 作用：
 
@@ -962,7 +1055,44 @@ MVP 阶段建议结构化任务框架至少包含以下字段：
 - 让检索结果与时间要求对齐；
 - 明确是否由系统填充默认时间窗。
 
-##### 3. `query_mode`
+
+
+##### 3. `keyword_terms`
+
+这里的“关键词”不是泛指用户问题中的高频词，而是指：
+
+- 对当前问题有明确检索约束作用的专业术语；
+- 表示事件或动作的核心动词；
+- 能显著提升稀疏检索定位能力的短语表达；
+- 需要参与同义词、别名或缩写扩展的领域词。
+
+因此，MVP 阶段推荐方案为：
+
+- **LLM 负责语义初判**：识别哪些术语、动作和短语值得进入关键词候选集合；
+- **程序侧 NLP 负责最终提取与清洗**：完成分词、词性识别、停用词过滤、术语保留、短语归并和结构化输出；
+- **程序侧规则负责标准化与约束**：控制词数上限、去重逻辑、领域词扩展和最终 Token 列表生成。
+
+
+
+字段设计：
+
+* `core_terms`：经过规则确认后的核心检索词
+* `action_terms`：表示事件动作的核心动词
+* `excluded_terms`：已识别但被排除的词，如主体词、时间词、泛词
+* `confidence`：当前关键词提取结果的可信度
+
+
+
+其后续用途是：
+
+1. 提供给首轮检索计划生成模块，判断是否应启用关键词检索或混合检索；
+2. 提供给关键词 Query Compiler，生成 BM25 / 倒排索引查询表达式；
+3. 在 `filters` 已完成候选范围收口后，用于片段级精确术语定位。
+
+
+
+##### 4. `query_mode`
+
 MVP 阶段建议统一为以下枚举：
 
 - `LIST`：列举 / 扫描
@@ -977,7 +1107,8 @@ MVP 阶段建议统一为以下枚举：
 - `query_mode` 回答的是“这道题本质上想要什么类型结果”；
 - 它不等于业务事项类型。
 
-##### 4. `domain_facet`
+##### 5. `domain_facet`
+
 MVP 阶段建议统一为以下枚举：
 
 - `REGULATORY`：监管
@@ -998,7 +1129,26 @@ MVP 阶段建议统一为以下枚举：
 - “这次问询影响如何”是 `ASSESS × REGULATORY`；
 - “最新财报有哪些重点”是 `SUMMARIZE × FINANCIAL_REPORT`。
 
-##### 5. `conversation_state`
+##### 6. `document_scope`
+
+字段说明:
+
+- `need_full_document`：是否需要将整篇 document 纳入首轮分析范围，而不仅仅依赖 fragment；
+- `mode`：文档使用模式，用于区分当前问题是只需片段分析，还是需要整篇文档，或需要两者结合；
+  - `fragment_only`：默认模式，仅基于片段进行分析；
+  - `full_document`：需要整篇文档参与分析；
+  - `reason`：对当前文档范围判断的简要解释，用于调试、回放和后续规则校验；
+- `confidence`：LLM 对该字段判断的置信度，用于衡量当前文档范围识别是否可靠
+
+作用:
+
+- 区分“局部事实提取”与“整篇文档概括”两类问题；
+- 为首轮检索计划生成模块提供文档使用方式约束；
+- 避免所有问题都默认进入整篇 document 分析，导致上下文过重；
+- 为后续`retrieval_target`和`branch_plan`的生成提供上游语义依据。
+
+##### 7. `conversation_state`
+
 建议至少支持：
 
 - `turn_type`：当前问题属于单轮提问、追问还是延续分析。
@@ -1011,37 +1161,64 @@ MVP 阶段建议统一为以下枚举：
 - 支持“展开看监管部分”“只看最近三个月”这类追问；
 - 减少多轮场景重复解析。
 
-#### 7.3.4 结构化任务框架示例
+#### 6.3.4 结构化任务框架示例
 
 ```json
 {
-  "user_query": "最近三个月有没有监管问询或处罚？",
-  "subject": {
-    "entity_id": 12345,
-    "entity_name": "示例股份",
-    "stock_code": "600000",
-    "is_primary": true,
-    "confidence": 0.98
+  "user_query": "宁德时代最近三个月有没有在HVDC方面进行相关研发？",
+  "subjects": {
+    "resolved": [
+      {
+        "entity_id": 1001,
+        "entity_name": "宁德时代新能源科技股份有限公司",
+        "stock_code": "300750",
+        "exchange": "SZSE",
+        "mention_text": "宁德时代",
+        "role": "primary",
+        "resolution_confidence": 0.98,
+        "match_type": "alias_exact"
+      }
+    ],
+    "unresolved": [],
+    "primary_entity_ids": [1001]
   },
   "time_constraint": {
     "raw_text": "最近三个月",
-    "start_date": "2025-12-28",
-    "end_date": "2026-03-28",
-    "mode": "bounded",
-    "is_default": false
+    "mode": "relative_range",
+    "start_date": "2025-12-31",
+    "end_date": "2026-03-31",
+    "is_explicit": true,
+    "is_default": false,
+    "confidence": 0.95
   },
-  "query_mode": "LIST",
-  "domain_facet": "REGULATORY",
-  "conversation_state": {
-    "turn_type": "single_turn",
-    "inherits_subject": false,
-    "inherits_time_range": false,
-    "inherits_focus": null
+  "keyword_terms": {
+    "core_terms": ["HVDC"],
+    "action_terms": ["研发"],
+    "excluded_terms": ["宁德时代"],
+    "confidence": 0.93
+  },
+  "query_mode": {
+    "value": "LIST",
+    "confidence": 0.96,
+    "validated_by_rule": true
+  },
+  "document_scope": {
+    "need_full_document": false,
+    "mode": "fragment_only",
+    "reason": "用户问题是在时间窗口内列举是否存在监管问询或处罚，目标是事件扫描与事实确认，不要求对某一份监管文档整体内容进行概括",
+    "confidence": 0.95
+  },
+  "domain_facet": {
+    "primary": "REGULATORY",
+    "secondary": ["RISK_GOVERNANCE"],
+    "confidence": 0.91,
+    "validated_by_rule": true
   }
 }
 ```
 
-#### 7.3.5 Task Frame 在 MVP 中的作用
+#### 6.3.5 Task Frame 在 MVP 中的作用
+
 本阶段，Task Frame 主要用于三件事：
 
 1. **统一检索入口**
@@ -1067,9 +1244,443 @@ MVP 阶段建议统一为以下枚举：
 
 ---
 
+### 6.4 首轮过滤条件（Filters）
+
+#### 6.4.1 设计目标
+
+`filters` 用于把 Task Frame 中已经确定的主体、时间、业务领域和文档范围约束，转换为首轮检索阶段可直接执行的统一过滤条件。
+
+其目标包括：
+
+- 将 Task Frame 中的结构化约束编译为首轮检索统一过滤条件；
+- 为事件层、文档层和片段层提供一致的候选范围收口基础；
+- 避免首轮检索直接在全量索引上做无约束召回；
+- 为后续 `branch_plan` 的生成提供明确的过滤边界。
+
+`filters` 不负责：
+
+- 决定首轮检索分支；
+- 生成具体 query 文本；
+- 生成排序分数；
+- 进行覆盖度评估和补检规划。
+
+因此，`filters` 的定位不是检索策略本身，而是：
+
+> 在 Task Frame 已完成问题理解的基础上，将结构化约束编译为首轮统一过滤条件。
+
+#### 6.4.2 字段设计
+
+MVP 阶段建议 `filters` 至少包含以下字段：
+
+| 字段名                   | 类型          | 是否必填 | 说明                       |
+| ------------------------ | ------------- | -------- | -------------------------- |
+| `primary_entity_ids`     | array<int>    | 是       | 首轮检索的主主体硬过滤条件 |
+| `time_range`             | object        | 是       | 首轮检索统一时间范围       |
+| `source_types`           | array<string> | 否       | 首轮允许的来源类型         |
+| `doc_types`              | array<string> | 否       | 首轮允许的文档类型         |
+| `event_types`            | array<string> | 否       | 首轮允许的事件类型         |
+| `allow_related_entities` | boolean       | 是       | 首轮是否允许关联主体扩展   |
+
+#### 6.4.3 关键字段说明
+
+##### 1. `primary_entity_ids`
+
+字段说明：
+
+表示首轮检索的主主体过滤条件。
+
+其值直接来源于 `Task Frame.subjects.primary_entity_ids`。
+
+作用：
+
+- 将首轮检索范围限制在当前问题的主股票 / 公司主体上；
+- 降低串股和主体漂移风险；
+- 为事件层、文档层和片段层提供统一主体硬约束。
+
+规则：
+
+- 若 `primary_entity_ids` 为空，则首轮检索计划不应继续生成；
+- MVP 阶段默认不因主体缺失而自动放宽为全市场搜索。
+
+##### 2. `time_range`
+
+字段说明：
+
+表示首轮检索统一使用的时间范围。
+
+其值优先来源于 `Task Frame.time_constraint` 的标准化结果。
+
+建议至少包含：
+
+- `start_date`
+- `end_date`
+
+作用：
+
+- 对首轮候选范围进行时间收口；
+- 保证事件、文档和片段结果与问题时间约束一致；
+- 避免首轮检索因时间未收口而引入大量历史噪声。
+
+规则：
+
+1. 若 `Task Frame.time_constraint` 已给出显式范围，则直接使用；
+2. 若用户未显式指定时间范围，则系统按 `domain_facet` 补默认时间窗；
+3. 默认时间窗应由程序规则生成，而不由 LLM 临时决定。
+
+建议默认时间窗如下：
+
+| `domain_facet`     | 默认时间窗  |
+| ------------------ | ----------- |
+| `REGULATORY`       | 最近 180 天 |
+| `RISK_GOVERNANCE`  | 最近 180 天 |
+| `CAPITAL_MARKET`   | 最近 180 天 |
+| `FINANCIAL_REPORT` | 最近 400 天 |
+| `OPERATIONS`       | 最近 180 天 |
+| `GENERAL`          | 最近 180 天 |
+
+说明：
+
+- 财报类问题需要覆盖最近一期定期报告、业绩预告、业绩快报，因此默认时间窗可以更长；
+- 监管、风险、资本运作和经营事件问题，默认半年窗口通常足以满足 MVP 首轮检索。
+
+##### 3. `source_types`
+
+字段说明：
+
+表示首轮允许进入候选范围的来源类型。
+
+建议枚举沿用文档层设计中的 `source_type`：
+
+- `exchange`
+- `regulator`
+- `issuer`
+- `backup`
+
+作用：
+
+- 控制首轮检索只在可信来源内收口；
+- 避免低优先级来源在首轮混入过多候选；
+- 为事件层、文档层和片段层提供统一来源约束。
+
+建议映射规则如下：
+
+| `domain_facet`     | `source_types`                      |
+| ------------------ | ----------------------------------- |
+| `REGULATORY`       | [`exchange`, `regulator`, `issuer`] |
+| `RISK_GOVERNANCE`  | [`exchange`, `regulator`, `issuer`] |
+| `CAPITAL_MARKET`   | [`exchange`, `issuer`]              |
+| `FINANCIAL_REPORT` | [`issuer`, `exchange`]              |
+| `OPERATIONS`       | [`issuer`, `exchange`]              |
+| `GENERAL`          | [`exchange`, `regulator`, `issuer`] |
+
+说明：
+
+- 监管和风险类问题优先允许监管源和交易所源；
+- 财报和经营类问题优先限制在公司披露和交易所同步披露；
+- `backup` 不建议在首轮默认纳入。
+
+##### 4. `doc_types`
+
+字段说明：
+
+表示首轮允许的文档类型范围。
+
+建议枚举沿用文档层设计中的 `doc_type`：
+
+- `periodic_report`
+- `temp_announcement`
+- `inquiry`
+- `reply`
+- `penalty`
+
+作用：
+
+- 在首轮检索中进一步缩小文档和片段候选范围；
+- 将业务领域约束落实到文档级过滤；
+- 避免不同领域的公告类型互相污染。
+
+建议映射规则如下：
+
+| `domain_facet`     | `doc_types`                                          |
+| ------------------ | ---------------------------------------------------- |
+| `REGULATORY`       | [`inquiry`, `reply`, `penalty`, `temp_announcement`] |
+| `RISK_GOVERNANCE`  | [`penalty`, `temp_announcement`, `reply`, `inquiry`] |
+| `CAPITAL_MARKET`   | [`temp_announcement`, `periodic_report`]             |
+| `FINANCIAL_REPORT` | [`periodic_report`, `temp_announcement`]             |
+| `OPERATIONS`       | [`temp_announcement`, `periodic_report`]             |
+| `GENERAL`          | []                                                   |
+
+说明：
+
+- `GENERAL` 不建议做文档类型硬限制；
+- `REGULATORY` 和 `RISK_GOVERNANCE` 需要允许问询、回复、处罚及相关临时公告；
+- `CAPITAL_MARKET` 和 `OPERATIONS` 很多事件以临时公告为主，但也可能出现在定期报告中。
+
+##### 5. `event_types`
+
+字段说明：
+
+表示首轮事件层收口时允许的事件类型范围。
+
+建议枚举沿用事件层设计中的一级类型：
+
+- `financial`
+- `regulatory`
+- `risk`
+- `capital_market`
+- `operations`
+
+作用：
+
+- 约束事件层只收回当前业务领域相关的事件；
+- 为非 `GENERAL` 问题提供首轮事件收口条件；
+- 控制事件层返回的候选文档和片段映射范围。
+
+建议映射规则如下：
+
+| `domain_facet`     | `event_types`          |
+| ------------------ | ---------------------- |
+| `REGULATORY`       | [`regulatory`, `risk`] |
+| `RISK_GOVERNANCE`  | [`risk`, `regulatory`] |
+| `CAPITAL_MARKET`   | [`capital_market`]     |
+| `FINANCIAL_REPORT` | [`financial`]          |
+| `OPERATIONS`       | [`operations`]         |
+| `GENERAL`          | []                     |
+
+说明：
+
+- `REGULATORY` 和 `RISK_GOVERNANCE` 在实际数据中可能存在交叉，因此建议允许双向覆盖；
+- `GENERAL` 不通过事件层做首轮硬收口，因此 `event_types` 可为空。
+
+##### 6. `allow_related_entities`
+
+字段说明：
+
+表示首轮检索是否允许在主主体之外扩展到子公司、股东、实控人等关联主体。
+
+作用：
+
+- 控制首轮检索是否做主体扩展；
+- 防止首轮阶段主体边界失控；
+- 为后续版本关系扩检预留接口。
+
+规则：
+
+- MVP 阶段默认取 `false`；
+- 首轮检索计划不应默认启用关联主体扩展；
+- 只有后续版本或明确多主体问题才考虑放开。
+
+#### 6.4.4 生成规则
+
+MVP 阶段，`filters` 建议采用**程序规则生成**。
+
+生成顺序如下：
+
+##### 1. 生成 `primary_entity_ids`
+
+直接取自 `Task Frame.subjects.primary_entity_ids`。
+
+##### 2. 生成 `time_range`
+
+优先使用 `Task Frame.time_constraint`；  
+若未显式给出，则按 `domain_facet` 补默认时间窗。
+
+##### 3. 生成 `source_types`
+
+根据 `Task Frame.domain_facet.primary` 进行映射。
+
+##### 4. 生成 `doc_types`
+
+根据 `Task Frame.domain_facet.primary` 进行映射。
+
+##### 5. 生成 `event_types`
+
+根据 `Task Frame.domain_facet.primary` 进行映射；  
+若 `domain_facet = GENERAL`，则置为空。
+
+##### 6. 生成 `allow_related_entities`
+
+MVP 阶段固定为 `false`。
+
+#### 6.4.5 示例
+
+```json
+{
+  "filters": {
+    "primary_entity_ids": [1001],
+    "time_range": {
+      "start_date": "2025-12-31",
+      "end_date": "2026-03-31"
+    },
+    "source_types": ["exchange", "regulator", "issuer"],
+    "doc_types": ["inquiry", "reply", "penalty", "temp_announcement"],
+    "event_types": ["regulatory", "risk"],
+    "allow_related_entities": false
+  }
+}
+```
+
+### 6.5 首轮检索执行策略（Initial Retrieval Strategy）
+
+#### 6.5.1 设计目标
+
+首轮检索执行策略用于在 `Task Frame` 和 `filters` 已经确定的基础上，决定首轮应执行哪一种检索流程。
+
+其核心不是预先罗列静态检索分支，而是基于当前问题的任务语义、文档范围和检索目标，选择合适的首轮检索方式，并定义后续的融合与后处理动作。
+
+其目标包括：
+
+- 根据 `Task Frame` 判断首轮应执行文档检索还是片段检索；
+- 保证关键词检索和语义检索都在 `filters` 收口后的候选范围内执行，而不是直接面向全集合；
+- 在片段检索场景下，为关键词检索、语义检索和混合检索提供统一的流程约束；
+- 在混合检索场景下，定义结果融合与后处理规则；
+- 避免首轮检索流程依赖执行阶段的临时判断。
+
+本模块不负责：
+
+- 生成最终回答；
+- 决定补检策略；
+- 进行覆盖度评估；
+- 组织最终上下文包。
+
+因此，首轮检索执行策略的定位不是“静态分支清单”，而是：
+
+> 在结构化约束已经明确的前提下，确定首轮应执行哪一种检索流程，以及该流程的后处理方式。
+
+#### 6.5.2 基本检索类型
+
+MVP 阶段，首轮检索执行策略建议统一为以下三类检索行为：
+
+1. **文档检索**
+2. **关键词检索**
+3. **语义检索**
+
+其中：
+
+- 文档检索面向 `document` 对象；
+- 关键词检索和语义检索面向 `fragment` 对象；
+- 关键词检索和语义检索均必须先基于 `filters` 确定候选范围，再在候选范围内执行；
+- 当关键词检索和语义检索同时执行时，视为混合检索。
+
+#### 6.5.3 文档检索策略
+
+文档检索用于直接在 `document` 对象上进行首轮检索。
+
+其适用场景是：
+
+- `Task Frame.document_scope.mode = full_document`
+
+即当前问题要求对某一份文档整体内容进行分析，而不是主要依赖片段级证据。
+
+文档检索的执行方式为：
+
+1. 先基于 `filters` 中的主体、时间、来源、文档类型和事件类型完成候选范围收口；
+2. 在收口后的文档候选集合中直接执行文档检索；
+3. 将命中的文档对象作为首轮主分析对象输出。
+
+说明：
+
+- 文档检索不依赖片段级关键词匹配或片段级语义相似度；
+- 文档检索的核心是先利用 `filters` 缩小候选范围，再直接命中文档对象；
+- 在该模式下，首轮上下文以整篇文档为主。
+
+#### 6.5.4 片段检索策略
+
+片段检索用于在 `fragment` 对象上进行首轮精确匹配检索。
+
+其适用场景是：
+
+- `Task Frame.document_scope.mode = fragment_only`
+
+关键词检索的执行方式为：
+
+**语义为主、关键词为辅的双链路混合检索策略**
+
+其核心思想是：
+
+- 语义检索承担首轮主召回责任，用于覆盖同义表达、隐式表述和自然语言变体；
+- 关键词检索承担术语补强责任，用于强化对行业缩写、监管术语、产品名和事件名词的精确命中；
+- 两条链路都必须先服从 `filters` 的范围收口，而不是直接在全集片段上执行；
+- 两路召回结果统一进入融合、精确过滤与重排流程，不允许简单拼接后直接返回。
+
+##### 1.  双链路检索流程
+
+MVP 阶段，片段级双链路检索建议统一按以下流程执行：
+
+> `Task Frame`
+> → `filters` 收口
+> → 生成统一候选范围
+> → Dense Route 并行召回
+> → Sparse Route 并行召回
+> → 结果融合
+> → 精确过滤
+> → 重排
+> → 输出首轮片段候选
+
+**Dense Route：语义主召回**
+
+执行方式建议为：
+
+1. 使用用户原始问题或轻度标准化后的语义 query 生成 embedding；
+2. 在已完成 `filters` 收口的片段范围内执行向量相似度检索；
+3. 返回 `TopN_dense` 个语义候选片段。
+4. Dense Route 应保持单次执行，以控制成本和复杂度
+
+**Sparse Route：关键词辅助召回**
+
+执行方式建议为：
+
+1. 从 Task Frame 附属输出的 `keyword_terms` 中生成稀疏检索表达式；
+2. 将核心术语、短语和必要扩展词合并成一次 BM25 查询；
+3. 在同一候选范围内执行稀疏检索；
+4. 返回 `TopN_sparse` 个关键词候选片段。
+
+##### 2. 结果融合
+
+双链路召回结束后，系统需要将 Dense 与 Sparse 的结果合并为统一候选列表。
+
+MVP 阶段，主方案建议采用 **RRF（Reciprocal Rank Fusion）**。融合公式可写为：
+
+```text
+RRF_Score(d) = 1 / (k + rank_dense(d)) + λ / (k + rank_sparse(d))
+```
+
+其中：
+
+- `rank_dense(d)`：片段 `d` 在 Dense Route 中的排名；
+- `rank_sparse(d)`：片段 `d` 在 Sparse Route 中的排名；
+- `k`：平滑常数；
+- `λ`：关键词辅助权重。
+
+##### 3. 重排
+
+经过融合与精确过滤之后，应对候选集做统一重排。
+
+双链路融合解决的是“召回覆盖”问题，不是“最终排序最优”问题。在股票问答场景中，即使某个片段同时被 Dense 和 Sparse 命中，它也可能只是“提到了关键词”，但不一定是最适合进入回答上下文的核心证据。
+
+因此，MVP 阶段建议保留一个轻量重排层，对融合后的 `TopM` 候选做精排。
+
+**主方案：Cross-Encoder Rerank**
+
+主方案建议使用 Cross-Encoder 或等价的 pairwise reranker。
+
+输入：
+
+- 用户问题
+- 候选片段文本
+- 必要时附加文档标题、文档类型、来源、发布时间等轻量元数据
+
+输出：
+
+- 每个候选片段的相关性分数
+- 最终排序列表
+
+**备选方案：LLM Rerank**
+
 ## 8. 回答生成与引用输出
 
 ### 8.1 输出目标
+
 回答生成模块负责将上下文包转换为用户可读结果，但必须遵守以下原则：
 
 - 结论尽量简洁；
@@ -1078,6 +1689,7 @@ MVP 阶段建议统一为以下枚举：
 - 每个核心结论均可回溯到文档或片段。
 
 ### 8.2 MVP 输出结构
+
 MVP 阶段统一输出为问答式结果，建议包含：
 
 1. 用户问题
@@ -1088,6 +1700,7 @@ MVP 阶段统一输出为问答式结果，建议包含：
 6. 引用来源
 
 ### 8.3 基础判断输出
+
 MVP 阶段仅支持轻量判断：
 
 - 利好
@@ -1105,26 +1718,31 @@ MVP 阶段仅支持轻量判断：
 ## 9. 非功能要求
 
 ### 9.1 可信度要求
+
 - 官方披露与监管文件优先；
 - 低优先级来源不能覆盖高优先级来源；
 - 回答中需体现来源。
 
 ### 9.2 可追溯性要求
+
 - 所有核心结论必须能回到文档或片段；
 - 文档、片段、事件、主体之间关系必须可追溯；
 - 版本信息必须可保留。
 
 ### 9.3 可解释性要求
+
 - 明确区分事实与系统判断；
 - 对利好 / 利空 / 待观察给出基础依据；
 - 避免脱离证据的泛化输出。
 
 ### 9.4 性能要求
+
 - 常见单股问答应在可接受时间内返回；
 - 检索链路应优先通过结构化过滤收缩范围，避免全量高成本检索；
 - 长文档切分与索引更新应稳定可用。
 
 ### 9.5 可扩展性要求
+
 - 后续可在 Task Frame 基础上扩展为自适应检索；
 - 后续可增加更多数据源与更复杂的关系对象；
 - 模块边界应保持稳定，避免 MVP 实现阻碍后续演进。
@@ -1134,6 +1752,7 @@ MVP 阶段仅支持轻量判断：
 ## 10. MVP 验收要点
 
 ### 10.1 功能验收
+
 系统至少应稳定支持以下问题：
 
 - 某股票最近一个月有哪些重要公告？
@@ -1143,6 +1762,7 @@ MVP 阶段仅支持轻量判断：
 - 某个事件偏利好还是利空？依据是什么？
 
 ### 10.2 输出验收
+
 回答应满足：
 
 - 主体正确；
@@ -1153,6 +1773,7 @@ MVP 阶段仅支持轻量判断：
 - 能定位到引用来源。
 
 ### 10.3 检索与上下文验收
+
 MVP 阶段至少应满足：
 
 - 能将问题解析为统一的 Task Frame；
