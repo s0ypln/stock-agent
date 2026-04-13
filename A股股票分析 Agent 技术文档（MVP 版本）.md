@@ -849,7 +849,7 @@ MVP 阶段必须支持以下能力：
 
 ---
 
-### 5.4.X 图层与主存层关系图（文本块）
+#### 5.4.6 图层与主存层关系图（文本块）
 
 ```text
 entity
@@ -1430,11 +1430,6 @@ MVP 阶段建议统一为以下枚举：
     "action_terms": ["研发"],
     "excluded_terms": ["宁德时代"],
     "confidence": 0.93
-  },
-  "query_mode": {
-    "value": "LIST",
-    "confidence": 0.96,
-    "validated_by_rule": true
   },
   "document_scope": {
     "need_full_document": false,
